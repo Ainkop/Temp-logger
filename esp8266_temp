@@ -53,12 +53,12 @@ void handleRoot() {
              "<body style='font-family:sans-serif;margin:16px'>"
              "<h2>Logimise test</h2>";
   p += "Mõõtmisi: " + String(nr) + "<br>";
-  p += "Viimane: " + (isnan(lastT) ? String("ERR") : String(lastT, 2) + " &deg;C") + "<br><br>";
+  p += "Viimane: " + (isnan(lastT) ? String("ERR") : String(lastT, 2) + " &deg;C") + "<br>";
+  p += "Toorväärtus: " + String(lastRaw, 2) + "<br><br>";
   p += "<a href='/log.csv'>Lae alla log.csv</a><br><br>";
   p += "<a href='/clear'>Kustuta logi</a>";
   p += "</body></html>";
   server.send(200, "text/html; charset=utf-8", p);
-  p += "Toorväärtus: " + String(lastRaw, 2) + "<br>";
 }
 
 void handleCsv() {
