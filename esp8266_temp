@@ -1,43 +1,92 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
+#include <LittleFS.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
-#define ONE_WIRE_PIN 2
+#define ONE_WIRE_PIN 2        // kui töötab GPIO2-ga, jäta; muidu 4
 #define AP_SSID "Suvila-logger"
 #define AP_PASS "muuda-mind-123"
+#define MEAS_INTERVAL_MS 10000UL
 
 OneWire oneWire(ONE_WIRE_PIN);
 DallasTemperature sensors(&oneWire);
 ESP8266WebServer server(80);
 
-void handleRoot() {
+uint32_t nr = 0;
+float lastT = NAN;
+unsigned long lastMeas = 0;
+
+bool validTemp(float t) {
+  return t != DEVICE_DISCONNECTED_C && t != 85.0;
+}
+
+void measureAndLog() {
   sensors.requestTemperatures();
-  int count = sensors.getDeviceCount();
+  float t = sensors.getTempCByIndex(0);
+  nr++;
+
+  bool newFile = !LittleFS.exists("/log.csv");
+  File f = LittleFS.open("/log.csv", "a");
+  if (f) {
+    if (newFile) f.print("nr,maa\n");
+    if (validTemp(t)) f.printf("%u,%.2f\n", (unsigned)nr, t);
+    else              f.printf("%u,ERR\n", (unsigned)nr);
+    f.close();
+  }
+  lastT = validTemp(t) ? t : NAN;
+  Serial.printf("nr=%u t=%.2f\n", (unsigned)nr, t);
+}
+
+void handleRoot() {
   String p = "<!DOCTYPE html><html><head><meta charset='utf-8'>"
              "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-             "<meta http-equiv='refresh' content='3'></head>"
+             "<meta http-equiv='refresh' content='5'></head>"
              "<body style='font-family:sans-serif;margin:16px'>"
-             "<h2>Temperatuuri test</h2>";
-  p += "Andureid: " + String(count) + "<br>";
-  for (int i = 0; i < count; i++) {
-    p += "Andur " + String(i) + ": " +
-         String(sensors.getTempCByIndex(i), 2) + " &deg;C<br>";
-  }
+             "<h2>Logimise test</h2>";
+  p += "Mõõtmisi: " + String(nr) + "<br>";
+  p += "Viimane: " + (isnan(lastT) ? String("ERR") : String(lastT, 2) + " &deg;C") + "<br><br>";
+  p += "<a href='/log.csv'>Lae alla log.csv</a><br><br>";
+  p += "<a href='/clear'>Kustuta logi</a>";
   p += "</body></html>";
   server.send(200, "text/html; charset=utf-8", p);
 }
 
+void handleCsv() {
+  File f = LittleFS.open("/log.csv", "r");
+  if (!f) { server.send(404, "text/plain", "Logi on tuhi"); return; }
+  server.sendHeader("Content-Disposition", "attachment; filename=log.csv");
+  server.streamFile(f, "text/csv");
+  f.close();
+}
+
+void handleClear() {
+  LittleFS.remove("/log.csv");
+  nr = 0;
+  server.sendHeader("Location", "/");
+  server.send(303);
+}
+
 void setup() {
   Serial.begin(115200);
+  delay(500);
+  LittleFS.begin();
   sensors.begin();
   sensors.setResolution(12);
+
   WiFi.mode(WIFI_AP);
   WiFi.softAP(AP_SSID, AP_PASS, 1, 0, 2);
+
   server.on("/", handleRoot);
+  server.on("/log.csv", handleCsv);
+  server.on("/clear", handleClear);
   server.begin();
 }
 
 void loop() {
   server.handleClient();
+  if (millis() - lastMeas >= MEAS_INTERVAL_MS) {
+    lastMeas = millis();
+    measureAndLog();
+  }
 }
