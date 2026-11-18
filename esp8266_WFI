@@ -1,0 +1,31 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+
+#define AP_SSID "Suvila-logger"
+#define AP_PASS "muuda-mind-123"   // vähemalt 8 märki
+
+ESP8266WebServer server(80);
+
+void handleRoot() {
+  server.send(200, "text/html; charset=utf-8",
+              "<h2>Töötab!</h2>WiFi test OK.");
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(500);
+  Serial.println("\nWiFi test");
+
+  WiFi.mode(WIFI_AP);
+  bool ok = WiFi.softAP(AP_SSID, AP_PASS, 1, 0, 2);
+  Serial.printf("softAP: %s\n", ok ? "OK" : "VIGA");
+  Serial.print("IP: ");
+  Serial.println(WiFi.softAPIP());   // tavaliselt 192.168.4.1
+
+  server.on("/", handleRoot);
+  server.begin();
+}
+
+void loop() {
+  server.handleClient();
+}
