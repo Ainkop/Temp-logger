@@ -1,0 +1,28 @@
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
+#define ONE_WIRE_PIN 2
+
+OneWire oneWire(ONE_WIRE_PIN);
+DallasTemperature sensors(&oneWire);
+
+void setup() {
+  Serial.begin(115200);
+  delay(500);
+  Serial.println("\nTemperatuuri test");
+
+  sensors.begin();
+  sensors.setResolution(12);
+  Serial.printf("Andureid leitud: %d\n", sensors.getDeviceCount());
+}
+
+void loop() {
+  sensors.requestTemperatures();
+  int count = sensors.getDeviceCount();
+  for (int i = 0; i < count; i++) {
+    float t = sensors.getTempCByIndex(i);
+    Serial.printf("Andur %d: %.2f °C\n", i, t);
+  }
+  if (count == 0) Serial.println("Andureid pole!");
+  delay(2000);
+}
