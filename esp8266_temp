@@ -1,28 +1,43 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
 #define ONE_WIRE_PIN 2
+#define AP_SSID "Suvila-logger"
+#define AP_PASS "muuda-mind-123"
 
 OneWire oneWire(ONE_WIRE_PIN);
 DallasTemperature sensors(&oneWire);
+ESP8266WebServer server(80);
+
+void handleRoot() {
+  sensors.requestTemperatures();
+  int count = sensors.getDeviceCount();
+  String p = "<!DOCTYPE html><html><head><meta charset='utf-8'>"
+             "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+             "<meta http-equiv='refresh' content='3'></head>"
+             "<body style='font-family:sans-serif;margin:16px'>"
+             "<h2>Temperatuuri test</h2>";
+  p += "Andureid: " + String(count) + "<br>";
+  for (int i = 0; i < count; i++) {
+    p += "Andur " + String(i) + ": " +
+         String(sensors.getTempCByIndex(i), 2) + " &deg;C<br>";
+  }
+  p += "</body></html>";
+  server.send(200, "text/html; charset=utf-8", p);
+}
 
 void setup() {
   Serial.begin(115200);
-  delay(500);
-  Serial.println("\nTemperatuuri test");
-
   sensors.begin();
   sensors.setResolution(12);
-  Serial.printf("Andureid leitud: %d\n", sensors.getDeviceCount());
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(AP_SSID, AP_PASS, 1, 0, 2);
+  server.on("/", handleRoot);
+  server.begin();
 }
 
 void loop() {
-  sensors.requestTemperatures();
-  int count = sensors.getDeviceCount();
-  for (int i = 0; i < count; i++) {
-    float t = sensors.getTempCByIndex(i);
-    Serial.printf("Andur %d: %.2f °C\n", i, t);
-  }
-  if (count == 0) Serial.println("Andureid pole!");
-  delay(2000);
+  server.handleClient();
 }
