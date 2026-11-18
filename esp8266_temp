@@ -21,9 +21,17 @@ bool validTemp(float t) {
   return t != DEVICE_DISCONNECTED_C && t != 85.0;
 }
 
+float lastRaw = 0;
+
 void measureAndLog() {
-  sensors.requestTemperatures();
-  float t = sensors.getTempCByIndex(0);
+  float t = DEVICE_DISCONNECTED_C;
+  for (int i = 0; i < 3; i++) {
+    sensors.requestTemperatures();
+    t = sensors.getTempCByIndex(0);
+    if (validTemp(t)) break;
+    delay(200);
+  }
+  lastRaw = t;
   nr++;
 
   bool newFile = !LittleFS.exists("/log.csv");
@@ -50,6 +58,7 @@ void handleRoot() {
   p += "<a href='/clear'>Kustuta logi</a>";
   p += "</body></html>";
   server.send(200, "text/html; charset=utf-8", p);
+  p += "Toorväärtus: " + String(lastRaw, 2) + "<br>";
 }
 
 void handleCsv() {
