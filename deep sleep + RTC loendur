@@ -1,0 +1,62 @@
+#include <LittleFS.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
+#define ONE_WIRE_PIN 2          // või 4, nagu sul töötab
+#define SLEEP_SECONDS 10
+
+struct RtcData {
+  uint32_t magic;
+  uint32_t nr;
+};
+RtcData rtc;
+const uint32_t MAGIC = 0xA5A55A5A;
+
+OneWire oneWire(ONE_WIRE_PIN);
+DallasTemperature sensors(&oneWire);
+
+bool validTemp(float t) {
+  return t != DEVICE_DISCONNECTED_C && t != 85.0;
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+
+  // loe loendur RTC mälust
+  ESP.rtcUserMemoryRead(0, (uint32_t*)&rtc, sizeof(rtc));
+  if (rtc.magic != MAGIC) {      // esimene käivitus (toide peale)
+    rtc.magic = MAGIC;
+    rtc.nr = 0;
+  }
+  rtc.nr++;
+
+  // mõõda
+  sensors.begin();
+  sensors.setResolution(12);
+  float t = DEVICE_DISCONNECTED_C;
+  for (int i = 0; i < 3; i++) {
+    sensors.requestTemperatures();
+    t = sensors.getTempCByIndex(0);
+    if (validTemp(t)) break;
+    delay(200);
+  }
+
+  // logi
+  LittleFS.begin();
+  bool newFile = !LittleFS.exists("/log.csv");
+  File f = LittleFS.open("/log.csv", "a");
+  if (f) {
+    if (newFile) f.print("nr,maa\n");
+    if (validTemp(t)) f.printf("%u,%.2f\n", (unsigned)rtc.nr, t);
+    else              f.printf("%u,ERR\n", (unsigned)rtc.nr);
+    f.close();
+  }
+  Serial.printf("nr=%u t=%.2f\n", (unsigned)rtc.nr, t);
+
+  // salvesta loendur ja maga
+  ESP.rtcUserMemoryWrite(0, (uint32_t*)&rtc, sizeof(rtc));
+  ESP.deepSleep(SLEEP_SECONDS * 1000000ULL);
+}
+
+void loop() {}
